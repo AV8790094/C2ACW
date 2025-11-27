@@ -1,0 +1,170 @@
+(*====Channels====*)
+1: free CH1Sec: channel [private].
+2: free CH2Pub: channel.
+ (*====Database====*)
+3: table DB1(bitstring,bitstring).
+4: table DB2(bitstring):bitstring.
+(*====Function====*)
+5: fun h(bitstring): bitstring.
+6: fun con(bitstring,bitstring):bitstring.
+7: fun xor(bitstring,bitstring):bitstring.
+8: fun PUF(bitstring).
+9: fun Gen(bitstring,bitstring): bitstring.
+10: fun Rep(bitstring,bitstring): bitstring.
+(*====Event====*)
+11: event CSStart(bitstring).
+event CSEnd(bitstring).
+12: event ODStart(bitstring).
+13: event ODEnd(bitstring).
+14: event C2Start(bitstring).
+15: event C2End(bitstring).
+16: event RQStart(bitstring).
+17: event RQEnd(bitstring).
+18: event attacker(skrq).
+19: event attacker(skss).
+20: event attacker(skod).
+(*====Query====*)
+21: query id:bitstring; inj-event(ODEnd(id))==> inj-event(ODStart(id)).
+22: query id:bitstring; inj-event(C2End(id))==> inj-event(C2Start(id)).
+23: query id:bitstring; inj-event(RQEnd(id))==> inj-event(RQStart(id)).
+(*====Function====*)
+24: equation forall p:bitstring,q:bitstring; xor(p,q),q)=p.
+(*====C2 Registration====*)
+25: let C2Reg=
+26: in(CH1Sec, (x:bitstring, y:bitstring, Q:bitstring, OV1:bitstring));
+27: out(CH1Sec, (PKS1));
+28: !
+29: (
+30: event C2Start(id);
+31: free LRN:bitstring;
+32: free KK1:bitstring;
+33: free H1:bitstring;
+34: let P1=PUF(OV1) in
+35: let Gen(P1)=h(KK1, H1) in
+36: let P2=h(KK1, LRN) in
+37: let PKS1=h(P2, Q) in
+38: inject DB1(OV1, PKS1);
+39: out(CH1Sec, (PKS1));
+40: 0
+41: ).
+(*====CS Registration====*)
+42: let CSReg=
+43: out(CH1Sec, (x, y, Q, OV1));
+44: in(CH1Sec(PKS1:bitstring));
+45: !
+46: (
+47: event CSStart(id);
+48: free LRN:bitstring;
+50: 49: free IDod:bitstring [private].
+51: let PHIDod=h(IDod, LRN) in
+52: let P8=h(P6,PKS1) in
+53: let P9=xor(P7, h(KK1, LRN)) in
+54: let P10=xor(h(P7, P8)) in
+55: out(CH1Sec, (P10, PKS1, PKS2));
+56: in(CH1Sec, (IDod:bitstring,P6:bitstring,P7:bitstring));
+57: 0
+58: ).
+(*====OD Registration====*)
+59: ODReg=
+60: out(CH1Sec, (IDod, P6, P7));
+61: in(CH1Sec, (P10:bitstring,PKS1:bitstring,PKS2:bitstring));
+62: !
+63: (
+64: free PWod:bitstring [private].
+65: free BIOod:bitstring;
+66: free Omega:bitstring;
+67: free H3:bitstring;
+68: let Gen(BIOod)=h(Omega, H3) in
+69: let P7=h(h(Omega, IDod), PWod) in
+70: out(CH1Sec, (IDod, P6, P7));
+71: let P11=h(h(h(P10, PKS1), PKS2), P7) in
+72: inject DB2(P10, P11, PKS1, PKS2, H3);
+73: 0
+74: ).
+75: let CS = CSReg | ODReg | C2Req | RQReg.
+(*====OD Authentication====*)
+76: let ODAuth=
+77: in(CH2Pub, (P21:bitstring,P22:bitstring));
+78: !
+79: (
+80: event ODStart(Skod);
+81: let Omegastr=Rep(BIOod, H3) in
+82: let P6str=H(Omegastr, IDod) in
+83: let P7str=h(h(Omegastr, IDod), PWod) in
+84: let P8str=h(P6str, PKS1) in
+85: let P10str=h(xor(P7str, P8str)) in
+86: if P10str=P10 then
+87: free r1:bitstring;
+88: free r2:bitstring;
+89: free T1:bitstring;
+90: let P11str=h(h(h(P10, PKS1), PKS2), P7) in
+91: let P12=h(h(r1, P6str), Q) in
+92: let P13=h(P12, PKS1) in
+93: let P14=h(P12, PKS2) in
+94: let P15=h(PKS2) in
+95: let P16=xor(IDod, h(P12, T)) in
+96: let P17=xor(IDod, h(P14, T)) in
+97: let P18=h(h(h(h(h(r2, IDod), P12), P7str), P16), P17) in
+98: out(CH2Pub, (P12, P16, P17, P18, T));
+99: in(CH2Pub, (P20:bitstring,P22:bitstring,T3:bitstring));
+100: let SKod=XOR(h(h(r2, IDod), r3), DSsr) in
+101: event ODEnd(SKod);
+102: 0
+103: ).
+(*=====RQ Authentication====*)
+104: let RQAuth=
+105: in(CH2Pub, (P12:bitstring,P17:bitstring,P19:bitstring,T2:bitstring));
+106: out(CH2Pub, (P20:bitstring,P21:bitstring,T3:bitstring));
+107: !
+108: (
+109: event RQStart(SKrq);
+110: free OV2:bitstring;
+111: free H2:bitstring;
+112: let P3=PUF(OV2) in
+113: let KK2=Fen(P3, H2) in
+114: let P4=H(PKS2) in
+115: let IDod=xor(P16, h(P13, T2)) in
+116: let PHIDod=h(IDod, LRN) in
+117: let Dsstr=xor(P17, h(P14str, T2)) in
+118: let P17str=xor(IDod, h(P14str, T2)) in
+119: if P17str=P17 then
+120: free r3:bitstring;
+121: free T3:bitstring;
+122: let P20=xor(h(r3, Dsstr), h(h(P14str, r2), IDod)) in
+123: let SKrq=h(r2, xor(IDod, r1), h(r3, xor(Idod, Dsstr)) in
+124: let P21=h(h(h(h(SKrq, PHIDod), r3), Dsstr), T3)) in
+125: out(CH2Pub, (P20, P21, T3));
+126: event RQEnd(SKrq);
+127: 0
+128: ).
+(*====C2 Authentication====*)
+129: let C2Auth=
+130: in(CH2Pub, (P12, P16, P17, P18, T1));
+131: out(CH2Pub, (P12, P17, P18, T2));
+132: !
+133: (
+134: event C2Start(SKss);
+135: free H1:bitstring;
+136: let P1=PUG(OV2) in
+137: let KK1=Gen(P1, H1) in
+138: let P2=h(KK1, LRN) in
+139: let Px=h(P2, P12) in
+140: let IDod=xor(h(P13, T2), P16) in
+141: let PHIDodstr=h(IDod, LRN) in
+142: if PHIDodstr=PHIDstr then
+143: free P7:bitstring;
+144: let P18str=h(h(h(h(h(r2, IDod), P12), P7str), P16), P17) in
+145: if P18str=P18 then
+146: free T3:bitstring;
+147: out(CH2Pub, (P12, P17, P19, T3));
+148: in(CH2Pub, (P20:bitstirng,P21:bitstring,T3:bitstirng));
+149: if PHIDstr=PHID then
+150: free T4:bitstirng;
+151: let SKss= h(r2, xor(IDod, r1), h(r3, xor(Idod, Dsstr)) in
+152: let P20str= xor(h(r3, Dsstr), h(h(P14str, r2), IDod)) in
+153: let P22= h(h(h(h(SKrq, PHIDod), r3), Dsstr), T4)) in
+154: out(CH2Pub, (P20, P22, T4));
+155: event C2End(SKss);
+156: 0
+157: ).
+158: process (( !ODAuth | !RQAuth | !C2Auth))

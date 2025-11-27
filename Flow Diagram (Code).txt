@@ -1,0 +1,128 @@
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from matplotlib.patches import FancyBboxPatch
+import numpy as np
+
+# Create figure and axis
+fig, ax = plt.subplots(1, 1, figsize=(14, 10))
+ax.set_xlim(0, 10)
+ax.set_ylim(0, 12)
+
+# Hide axes
+ax.set_axis_off()
+
+# Define colors
+colors = {
+    'od': '#E6F3FF',
+    'c2': '#FFF0E6', 
+    'rq': '#F0E6FF',
+    'public_channel': '#FF9999',
+    'annotation': '#666666'
+}
+
+# Draw entities
+entities = {
+    'OD': (2, 10, 'Operator Device', colors['od']),
+    'C2': (5, 10, 'Command Center', colors['c2']),
+    'RQ': (8, 10, 'Reconnaissance Drone', colors['rq'])
+}
+
+# Draw entity boxes
+for i, (name, (x, y, label, color)) in enumerate(entities.items()):
+    # Main entity box
+    rect = FancyBboxPatch((x-1, y-0.8), 2, 0.8, 
+                         boxstyle="round,pad=0.02", 
+                         facecolor=color, edgecolor='black', linewidth=1)
+    ax.add_patch(rect)
+    ax.text(x, y-0.4, name, ha='center', va='center', fontweight='bold', fontsize=12)
+    ax.text(x, y-0.65, label, ha='center', va='center', fontsize=9)
+    
+    # Session key box at bottom
+    sk_rect = FancyBboxPatch((x-1, 0.2), 2, 0.4, 
+                            boxstyle="round,pad=0.02", 
+                            facecolor='lightgreen', edgecolor='darkgreen', linewidth=1)
+    ax.add_patch(sk_rect)
+    ax.text(x, 0.4, 'Session Key\nSK Agreed', ha='center', va='center', 
+            fontsize=8, fontweight='bold')
+
+# Message flow coordinates (with reduced vertical spacing)
+message_flows = [
+    # Step 1: OD -> C2
+    {'from': 'OD', 'to': 'C2', 'step': 1, 'y_pos': 8.5, 
+     'message': '{P₁₂, P₁₆, P₁₇, P₁₈, T}',
+     'annotation': '• Validates user locally\n• Initiates authentication'},
+    
+    # Step 2: C2 -> RQ  
+    {'from': 'C2', 'to': 'RQ', 'step': 2, 'y_pos': 7.0,
+     'message': '{P₁₂, P₁₇, P₁₉, T}',
+     'annotation': '• Verifies OD & timestamp\n• Forwards to RQ'},
+    
+    # Step 3: RQ -> C2
+    {'from': 'RQ', 'to': 'C2', 'step': 3, 'y_pos': 5.5,
+     'message': '{P₂₀, P₂₁, T}',
+     'annotation': '• Authenticates C2 & OD\n• Generates session key share'},
+    
+    # Step 4: C2 -> OD
+    {'from': 'C2', 'to': 'OD', 'step': 4, 'y_pos': 4.0,
+     'message': '{P₂₀, P₂₂, T}', 
+     'annotation': '• Relays RQ response\n• OD computes session key'}
+]
+
+# Draw message flows
+for flow in message_flows:
+    y = flow['y_pos']
+    from_x = entities[flow['from']][0]
+    to_x = entities[flow['to']][0]
+    
+    # Draw arrow
+    arrow = patches.FancyArrowPatch((from_x, y), (to_x, y),
+                                  arrowstyle='->', mutation_scale=20, 
+                                  color=colors['public_channel'], linewidth=2)
+    ax.add_patch(arrow)
+    
+    # Draw channel label box
+    channel_box = FancyBboxPatch((4.2, y-0.15), 1.6, 0.3,
+                               boxstyle="round,pad=0.02",
+                               facecolor=colors['public_channel'], 
+                               edgecolor='darkred', linewidth=1)
+    ax.add_patch(channel_box)
+    ax.text(5, y, 'Public Channel', ha='center', va='center', 
+            fontsize=8, fontweight='bold', color='darkred')
+    
+    # Add step number
+    ax.text(1, y+0.15, f'Step {flow["step"]:02d}:', ha='left', va='center', 
+            fontweight='bold', fontsize=10, color='blue')
+    
+    # Add message
+    ax.text(5, y+0.15, flow['message'], ha='center', va='center', 
+            fontsize=9, fontstyle='italic', fontweight='bold')
+    
+    # Add annotation
+    ax.text(5, y-0.4, flow['annotation'], ha='center', va='center',
+            fontsize=8, color=colors['annotation'])
+
+# Add session key formula at the bottom
+session_key_formula = r'$SK = H(r_2 \parallel (ID_{OD} \oplus r_1) \parallel H(r_3 \parallel (ID_{OD} \oplus DS^*)))$'
+ax.text(5, 1.2, 'Agreed Session Key:', ha='center', va='center', 
+        fontsize=11, fontweight='bold', color='darkgreen')
+ax.text(5, 0.8, session_key_formula, ha='center', va='center', 
+        fontsize=10, color='darkgreen')
+
+# Add title
+ax.text(5, 11.5, 'Three-Party Authentication Protocol: Message Flow Diagram', 
+        ha='center', va='center', fontsize=14, fontweight='bold')
+
+# Add legend
+legend_elements = [
+    plt.Line2D([0], [0], color=colors['public_channel'], lw=4, label='Public Channel Communication'),
+    plt.Rectangle((0,0), 1, 1, facecolor=colors['od'], edgecolor='black', label='Operator Device (OD)'),
+    plt.Rectangle((0,0), 1, 1, facecolor=colors['c2'], edgecolor='black', label='Command Center (C2)'),
+    plt.Rectangle((0,0), 1, 1, facecolor=colors['rq'], edgecolor='black', label='Reconnaissance Drone (RQ)'),
+    plt.Rectangle((0,0), 1, 1, facecolor='lightgreen', edgecolor='darkgreen', label='Agreed Session Key')
+]
+
+ax.legend(handles=legend_elements, loc='upper center', bbox_to_anchor=(0.5, 0.05), 
+          ncol=3, fontsize=9, framealpha=0.9)
+
+plt.tight_layout()
+plt.show()
