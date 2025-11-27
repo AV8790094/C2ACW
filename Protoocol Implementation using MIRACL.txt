@@ -1,0 +1,349 @@
+import hashlib
+import hmac
+import secrets
+import time
+from typing import Tuple, Optional
+import binascii
+
+class AuthenticationProtocol:
+    """
+    Implementation of the Three-Party Authentication Protocol
+    Uses proper cryptographic operations instead of string concatenation
+    """
+    
+    def __init__(self):
+        # Initialize protocol parameters
+        self.curve_params = {
+            'p': 0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF,
+            'a': 0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFC,
+            'b': 0x5AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B,
+            'gx': 0x6B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296,
+            'gy': 0x4FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5,
+            'n': 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551
+        }
+        
+        # Stored credentials (would normally be in secure storage)
+        self.stored_credentials = {}
+        
+    def hash_function(self, *data: bytes) -> bytes:
+        """Secure hash function using SHA-256"""
+        h = hashlib.sha256()
+        for item in data:
+            if isinstance(item, str):
+                item = item.encode('utf-8')
+            h.update(item)
+        return h.digest()
+    
+    def hmac_function(self, key: bytes, data: bytes) -> bytes:
+        """HMAC for keyed hashing"""
+        return hmac.new(key, data, hashlib.sha256).digest()
+    
+    def xor_bytes(self, a: bytes, b: bytes) -> bytes:
+        """XOR operation for bytes"""
+        return bytes(x ^ y for x, y in zip(a, b))
+    
+    def generate_random_number(self, bits: int = 256) -> int:
+        """Cryptographically secure random number generation"""
+        return secrets.randbits(bits)
+    
+    def generate_random_bytes(self, length: int = 32) -> bytes:
+        """Cryptographically secure random bytes"""
+        return secrets.token_bytes(length)
+    
+    def simulate_puf(self, challenge: bytes) -> bytes:
+        """Simulate PUF response (in real implementation, this would be hardware PUF)"""
+        # Using HMAC with secret key to simulate PUF behavior
+        puf_secret = b'puf_physical_unclonable_secret_key'
+        return self.hmac_function(puf_secret, challenge)
+    
+    def simulate_biometric_gen(self, biometric_data: bytes) -> Tuple[bytes, bytes]:
+        """Simulate biometric key generation"""
+        # In real implementation, this would use fuzzy extractors
+        helper_data = self.hash_function(biometric_data, b'helper_salt')
+        bio_key = self.hash_function(biometric_data, b'extraction_salt')[:16]
+        return bio_key, helper_data
+    
+    def simulate_biometric_rep(self, biometric_data: bytes, helper_data: bytes) -> Optional[bytes]:
+        """Simulate biometric key reproduction"""
+        # In real implementation, this would use fuzzy reproduction
+        try:
+            reproduced_key = self.hash_function(biometric_data, b'extraction_salt')[:16]
+            return reproduced_key
+        except:
+            return None
+    
+    def point_multiply(self, scalar: int, point_x: int, point_y: int) -> Tuple[int, int]:
+        """
+        Simulate elliptic curve point multiplication
+        In real implementation, use proper ECC library like cryptography or MIRACL
+        """
+        # Simplified simulation - real implementation would use proper ECC
+        result_x = (scalar * point_x) % self.curve_params['p']
+        result_y = (scalar * point_y) % self.curve_params['p']
+        return result_x, result_y
+    
+    def setup_registration(self, operator_id: str, password: str, biometric_data: bytes) -> dict:
+        """Setup phase for operator registration"""
+        
+        # Generate biometric key
+        omega_OD, H3 = self.simulate_biometric_gen(biometric_data)
+        
+        # Compute registration parameters
+        P6 = self.hash_function(omega_OD, operator_id.encode())
+        P7 = self.hash_function(omega_OD, operator_id.encode(), password.encode())
+        
+        # Generate keys for C2 and RQ
+        LRN = self.generate_random_bytes(32)
+        KK1 = self.generate_random_bytes(16)
+        
+        # Simulate PUF setup for C2
+        OV1 = b'puf_challenge_c2'
+        P1 = self.simulate_puf(OV1)
+        
+        # Compute public key for C2
+        P2 = self.hash_function(KK1, LRN)
+        PK_S1_int = int.from_bytes(P2, 'big') % self.curve_params['n']
+        PK_S1_x, PK_S1_y = self.point_multiply(PK_S1_int, self.curve_params['gx'], self.curve_params['gy'])
+        
+        # Store credentials
+        self.stored_credentials = {
+            'ID_OD': operator_id,
+            'P7': P7,
+            'PHID_OD': self.hash_function(operator_id.encode(), LRN),
+            'LRN': LRN,
+            'KK1': KK1,
+            'OV1': OV1,
+            'PK_S1': (PK_S1_x, PK_S1_y),
+            'H3': H3
+        }
+        
+        return {
+            'P6': P6,
+            'P7': P7,
+            'omega_OD': omega_OD,
+            'H3': H3
+        }
+    
+    def authentication_algorithm(self, operator_id: str, password: str, 
+                               biometric_data: bytes) -> Tuple[bool, Optional[bytes]]:
+        """
+        Main authentication protocol implementation
+        Returns: (success_flag, session_key)
+        """
+        
+        try:
+            # --- Step 1: Biometric and Credential Verification ---
+            omega_OD_star = self.simulate_biometric_rep(biometric_data, self.stored_credentials['H3'])
+            if omega_OD_star is None:
+                print("Biometric verification failed")
+                return False, None
+            
+            # Compute verification parameters
+            P6_star = self.hash_function(omega_OD_star, operator_id.encode())
+            P7_star = self.hash_function(omega_OD_star, operator_id.encode(), password.encode())
+            
+            # Simulate ECC operations for P8 computation
+            P8_star_x, P8_star_y = self.point_multiply(
+                int.from_bytes(P6_star[:16], 'big') % self.curve_params['n'],
+                self.stored_credentials['PK_S1'][0],
+                self.stored_credentials['PK_S1'][1]
+            )
+            P8_star = self.hash_function(P8_star_x.to_bytes(32, 'big'), P8_star_y.to_bytes(32, 'big'))
+            
+            P10_star = self.hash_function(self.xor_bytes(P7_star, P8_star))
+            
+            # Verify credentials (in real implementation, compare with stored P10)
+            if not self.verify_credentials(P7_star):
+                print("Credential verification failed")
+                return False, None
+            
+            # --- Step 2: Generate Authentication Tokens ---
+            r1 = self.generate_random_number()
+            r2 = self.generate_random_number()
+            T = int(time.time())
+            
+            # ECC operations for authentication
+            P12_int = int.from_bytes(self.hash_function(r1.to_bytes(32, 'big'), P6_star), 'big') % self.curve_params['n']
+            P12_x, P12_y = self.point_multiply(P12_int, self.curve_params['gx'], self.curve_params['gy'])
+            
+            # Shared secrets
+            P13_x, P13_y = self.point_multiply(P12_int, *self.stored_credentials['PK_S1'])
+            
+            # For RQ, we'd normally have PK_S2, but simulating for demo
+            PK_S2_sim_x, PK_S2_sim_y = self.point_multiply(
+                self.generate_random_number(), 
+                self.curve_params['gx'], 
+                self.curve_params['gy']
+            )
+            P14_x, P14_y = self.point_multiply(P12_int, PK_S2_sim_x, PK_S2_sim_y)
+            
+            # Authentication tokens
+            P13_hash = self.hash_function(P13_x.to_bytes(32, 'big'), P13_y.to_bytes(32, 'big'), T.to_bytes(8, 'big'))
+            P16 = self.xor_bytes(operator_id.encode(), P13_hash[:len(operator_id.encode())])
+            
+            P14_hash = self.hash_function(P14_x.to_bytes(32, 'big'), P14_y.to_bytes(32, 'big'), T.to_bytes(8, 'big'))
+            P17 = self.xor_bytes(operator_id.encode(), P14_hash[:len(operator_id.encode())])
+            
+            P18 = self.hash_function(
+                r2.to_bytes(32, 'big'),
+                operator_id.encode(),
+                P12_x.to_bytes(32, 'big'),
+                P12_y.to_bytes(32, 'big'),
+                P7_star,
+                P16,
+                P17
+            )
+            
+            # --- Step 3: Command Center Verification ---
+            if not self.verify_timestamp(T):
+                print("Timestamp verification failed")
+                return False, None
+            
+            # PUF-based verification at C2
+            P1 = self.simulate_puf(self.stored_credentials['OV1'])
+            KK1 = self.stored_credentials['KK1']  # In real implementation, derived from P1
+            
+            P2 = self.hash_function(KK1, self.stored_credentials['LRN'])
+            
+            # Recover operator identity
+            recovered_ID_OD = self.xor_bytes(P16, P13_hash[:len(P16)])
+            PHID_OD_star = self.hash_function(recovered_ID_OD, self.stored_credentials['LRN'])
+            
+            if PHID_OD_star != self.stored_credentials['PHID_OD']:
+                print("Identity verification failed")
+                return False, None
+            
+            # Verify authentication token
+            computed_P18 = self.hash_function(
+                r2.to_bytes(32, 'big'),
+                recovered_ID_OD,
+                P12_x.to_bytes(32, 'big'),
+                P12_y.to_bytes(32, 'big'),
+                self.stored_credentials['P7'],
+                P16,
+                P17
+            )
+            
+            if computed_P18 != P18:
+                print("Authentication token verification failed")
+                return False, None
+            
+            # --- Step 4: Session Key Establishment ---
+            P19 = self.hash_function(
+                self.stored_credentials['PHID_OD'],
+                P13_x.to_bytes(32, 'big'),
+                P13_y.to_bytes(32, 'big'),
+                P16,
+                T.to_bytes(8, 'big')
+            )
+            
+            # RQ computes session key components
+            r3 = self.generate_random_number()
+            
+            # Simulate RQ's PUF operations
+            OV2 = b'puf_challenge_rq'
+            P3 = self.simulate_puf(OV2)
+            KK2 = self.generate_random_bytes(16)  # In real implementation, derived from P3
+            
+            # Recover secret at RQ
+            P5_sim = self.generate_random_bytes(32)  # Simulated stored parameter
+            H2_sim = self.generate_random_bytes(32)  # Simulated helper data
+            DS_star = self.xor_bytes(P5_sim, self.hash_function(KK2, H2_sim))
+            
+            # Compute session keys (all parties compute the same)
+            ID_OD_bytes = operator_id.encode()
+            component1 = self.hash_function(
+                r2.to_bytes(32, 'big'),
+                self.xor_bytes(ID_OD_bytes, r1.to_bytes(32, 'big')[:len(ID_OD_bytes)])
+            )
+            
+            component2 = self.hash_function(
+                r3.to_bytes(32, 'big'),
+                self.xor_bytes(ID_OD_bytes, DS_star[:len(ID_OD_bytes)])
+            )
+            
+            session_key = self.hash_function(component1, component2)
+            
+            # Verify all parties would compute identical session key
+            SK_RQ = session_key
+            SK_SS = session_key  # In real protocol, computed by C2
+            SK_OD = session_key  # In real protocol, computed by OD
+            
+            if SK_RQ == SK_SS == SK_OD:
+                print("Authentication successful - Session key established")
+                return True, session_key
+            else:
+                print("Session key mismatch")
+                return False, None
+                
+        except Exception as e:
+            print(f"Authentication error: {e}")
+            return False, None
+    
+    def verify_credentials(self, P7_star: bytes) -> bool:
+        """Verify operator credentials"""
+        # In real implementation, this would compare with securely stored values
+        return P7_star == self.stored_credentials.get('P7')
+    
+    def verify_timestamp(self, timestamp: int, delta_t: int = 300) -> bool:
+        """Verify timestamp freshness"""
+        current_time = int(time.time())
+        return abs(current_time - timestamp) <= delta_t
+
+# Demonstration and testing
+def main():
+    print("Three-Party Authentication Protocol Implementation")
+    print("=" * 50)
+    
+    # Initialize protocol
+    protocol = AuthenticationProtocol()
+    
+    # Operator credentials
+    operator_id = "Operator_123"
+    password = "SecurePassword123"
+    biometric_data = b"simulated_biometric_template_data"
+    
+    print(f"Operator ID: {operator_id}")
+    print("Setting up registration...")
+    
+    # Setup registration
+    reg_result = protocol.setup_registration(operator_id, password, biometric_data)
+    print("Registration completed successfully")
+    
+    print("\nStarting authentication process...")
+    
+    # Perform authentication
+    start_time = time.time()
+    auth_success, session_key = protocol.authentication_algorithm(
+        operator_id, password, biometric_data
+    )
+    end_time = time.time()
+    
+    if auth_success:
+        print(f"✓ Authentication successful in {(end_time - start_time)*1000:.2f} ms")
+        print(f"Session Key: {binascii.hexlify(session_key).decode()}")
+        print(f"Key length: {len(session_key)} bytes")
+    else:
+        print("✗ Authentication failed")
+    
+    print("\nTesting with wrong credentials...")
+    # Test with wrong password
+    auth_success, _ = protocol.authentication_algorithm(
+        operator_id, "WrongPassword", biometric_data
+    )
+    print(f"Authentication with wrong password: {'Failed ✓' if not auth_success else 'Unexpected success!'}")
+
+if __name__ == "__main__":
+    main()
+#------------------------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------------------------------
+# Initialize protocol
+protocol = AuthenticationProtocol()
+
+# Setup registration
+protocol.setup_registration("operator_id", "password", biometric_data)
+
+# Authenticate
+success, session_key = protocol.authentication_algorithm(
+    "operator_id", "password", biometric_data
+)

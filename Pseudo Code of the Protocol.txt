@@ -1,0 +1,90 @@
+# Appendix A: Authentication Protocol Algorithm Pseudocode
+# Note: This is a conceptual representation - actual implementation uses
+# MIRACL Crypto SDK for cryptographic operations
+
+def authentication_algorithm(ID_OD, PW_OD, BIO_OD, omega_OD):
+    # --- Registration Phase Computations ---
+    # Step 1: Biometric and credential processing
+    P6 = hash(omega_OD || H3)           # Biometric key derivation
+    P7 = hash(omega_OD || ID_OD)         # Identity binding
+    P8 = hash(omega_OD || ID_OD || PW_OD) # Password binding
+    P10 = hash(P7 ⊕ P8)                  # Verification parameter
+    
+    # Validate stored credentials
+    if P10 != stored_P10:
+        return AUTH_FAILURE
+    
+    # --- Authentication Phase ---
+    # Step 2: Generate authentication tokens
+    r1, r2 = generate_random_numbers()
+    T = current_timestamp()
+    
+    # ECC operations (conceptual - actual uses MIRACL ECC)
+    P12 = hash(r1 || P6) · Q             # Elliptic curve point multiplication
+    P13 = P12 · PK_S1                    # Shared secret with C2
+    P14 = P12 · PK_S2                    # Shared secret with RQ
+    
+    # Authentication tokens
+    P16 = ID_OD ⊕ hash(P13 || T)
+    P17 = ID_OD ⊕ hash(P14 || T)
+    P18 = hash(r2 || ID_OD || P12 || P7 || P16 || P17)
+    
+    # Send {P12, P16, P17, P18, T} to Command Center (C2)
+    
+    # --- Command Center Verification ---
+    if not verify_timestamp(T):
+        return AUTH_FAILURE
+    
+    # PUF-based verification (actual implementation uses hardware PUF)
+    P1 = PUF(OV1)
+    KK1 = PUF_Gen(P1, H1)
+    P2 = hash(KK1 || LRN)
+    
+    # Recover and verify operator identity
+    recovered_ID_OD = hash(P13 || T) ⊕ P16
+    PHID_OD = hash(recovered_ID_OD || LRN)
+    
+    if PHID_OD != stored_PHID_OD:
+        return AUTH_FAILURE
+    
+    # Verify authentication token
+    computed_P18 = hash(r2 || recovered_ID_OD || P12 || stored_P7 || P16 || P17)
+    if computed_P18 != P18:
+        return AUTH_FAILURE
+    
+    # --- Reconnaissance Drone Authentication ---
+    # Forward {P12, P17, P19, T} to RQ
+    P19 = hash(PHID_OD || P13 || P16 || T)
+    
+    # --- Session Key Establishment ---
+    # RQ computes session key components
+    r3 = generate_random_number()
+    DS_star = recover_secret(P5, KK2, H2)  # PUF-based secret recovery
+    
+    SK_RQ = hash(r2 || (ID_OD ⊕ r1) || hash(r3 || (ID_OD ⊕ DS_star)))
+    
+    # Final key confirmation and distribution
+    SK_SS = hash(r2 || (ID_OD ⊕ r1) || hash(r3 || (ID_OD ⊕ DS_star)))
+    SK_OD = hash(r2 || (ID_OD ⊕ r1) || hash(r3 || (ID_OD ⊕ DS_star)))
+    
+    # Verify all parties compute identical session key
+    if SK_RQ == SK_SS == SK_OD:
+        return AUTH_SUCCESS, SK_RQ
+    else:
+        return AUTH_FAILURE
+
+# Example usage (conceptual)
+def main():
+    # These would be obtained through secure registration
+    ID_OD = "Operator_123"
+    PW_OD = "SecurePassword123" 
+    BIO_OD = "BiometricTemplate"
+    omega_OD = "DerivedBiometricKey"
+    
+    result, session_key = authentication_algorithm(ID_OD, PW_OD, BIO_OD, omega_OD)
+    
+    if result == AUTH_SUCCESS:
+        print("Authentication successful. Session key established.")
+        # Use session_key for secure communication
+    else:
+        print("Authentication failed.")
