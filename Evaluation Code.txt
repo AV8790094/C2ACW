@@ -1,0 +1,179 @@
+# Simulation Parameters
+import time
+import hashlib
+import secrets
+from tinyec import registry
+import numpy as np
+
+class ProtocolBenchmark:
+    def __init__(self):
+        self.curve = registry.get_curve('brainpoolP256r1')
+        self.iterations = 1000
+        self.message_sizes = {
+            'small': 128,    # Basic auth messages
+            'medium': 512,   # Key exchange
+            'large': 2048    # Data transmission
+        }
+#--------------------------------------------------------------------------
+#--------------------------------------------------------------------------
+def benchmark_computational_overhead():
+    """Benchmark cryptographic operations across protocols"""
+    results = {}
+    
+    # Test cryptographic primitives
+    operations = {
+        'ECC_Point_Mult': lambda: secrets.randbits(256) * curve.g,
+        'SHA256_Hash': lambda: hashlib.sha256(b'test_data').digest(),
+        'PUF_Simulation': lambda: secrets.token_bytes(32),
+        'XOR_Operation': lambda: secrets.token_bytes(32) ^ secrets.token_bytes(32),
+        'AES_Encrypt': lambda: aes_encrypt(secrets.token_bytes(16), b'test_data')
+    }
+    
+    for op_name, op_func in operations.items():
+        times = []
+        for _ in range(1000):
+            start = time.perf_counter()
+            op_func()
+            end = time.perf_counter()
+            times.append((end - start) * 1000)  # Convert to ms
+        
+        results[op_name] = {
+            'mean': np.mean(times),
+            'std': np.std(times),
+            'min': np.min(times),
+            'max': np.max(times)
+        }
+    
+    return results
+#--------------------------------------------------------------------------
+#--------------------------------------------------------------------------
+def analyze_communication_overhead():
+    """Analyze message sizes and transmission costs"""
+    protocol_messages = {
+        'Proposed': {
+            'Registration': {'C2': 192, 'RQ': 160, 'OD': 224},
+            'Authentication': {'Step1': 320, 'Step2': 256, 'Step3': 192, 'Step4': 192},
+            'Total_Bytes': 1536
+        },
+        'P2_UAVSec': {
+            'Registration': {'C2': 160, 'RQ': 128, 'OD': 192},
+            'Authentication': {'Step1': 288, 'Step2': 224, 'Step3': 160},
+            'Total_Bytes': 1152
+        },
+        'P3_PUFLight': {
+            'Registration': {'C2': 224, 'RQ': 192, 'OD': 256},
+            'Authentication': {'Step1': 352, 'Step2': 288, 'Step3': 224, 'Step4': 192},
+            'Total_Bytes': 1728
+        }
+    }
+    
+    return protocol_messages
+#--------------------------------------------------------------------------
+#--------------------------------------------------------------------------
+def calculate_energy_consumption(computational_time, communication_bytes):
+    """Calculate energy consumption based on device profiles"""
+    # Power consumption profiles (mW)
+    device_profiles = {
+        'raspberry_pi': {'compute': 1200, 'wifi_tx': 800, 'wifi_rx': 600},
+        'arduino_uno': {'compute': 98, 'lora_tx': 120, 'lora_rx': 45},
+        'esp32': {'compute': 240, 'wifi_tx': 290, 'wifi_rx': 190}
+    }
+    
+    energy_results = {}
+    
+    for protocol, data in computational_time.items():
+        for device, profile in device_profiles.items():
+            compute_energy = data['total_ms'] * profile['compute'] / 1000  # mJ
+            comm_energy = communication_bytes[protocol] * (profile['wifi_tx'] + profile['wifi_rx']) / 1000  # mJ
+            total_energy = compute_energy + comm_energy
+            
+            energy_results[f"{protocol}_{device}"] = total_energy
+    
+    return energy_results
+#--------------------------------------------------------------------------
+#--------------------------------------------------------------------------
+def analyze_memory_requirements():
+    """Analyze storage requirements for different protocols"""
+    memory_footprint = {
+        'Proposed': {
+            'C2': {'keys': 128, 'params': 96, 'temp': 64, 'total': 288},
+            'RQ': {'keys': 96, 'puf_data': 64, 'temp': 48, 'total': 208},
+            'OD': {'keys': 160, 'bio_data': 48, 'temp': 64, 'total': 272}
+        },
+        'P2_UAVSec': {
+            'C2': {'keys': 96, 'params': 64, 'temp': 48, 'total': 208},
+            'RQ': {'keys': 64, 'puf_data': 0, 'temp': 32, 'total': 96},
+            'OD': {'keys': 128, 'bio_data': 0, 'temp': 48, 'total': 176}
+        }
+    }
+    return memory_footprint
+#--------------------------------------------------------------------------
+#--------------------------------------------------------------------------
+def scalability_test(max_entities=1000):
+    """Test protocol performance with increasing number of entities"""
+    scalability_results = {}
+    
+    entity_counts = [10, 50, 100, 500, 1000]
+    
+    for count in entity_counts:
+        times = []
+        for protocol in protocols:
+            start = time.perf_counter()
+            # Simulate concurrent authentication requests
+            simulate_concurrent_auth(protocol, count)
+            end = time.perf_counter()
+            times.append((end - start) * 1000)  # ms
+        
+        scalability_results[count] = times
+    
+    return scalability_results
+#--------------------------------------------------------------------------
+#--------------------------------------------------------------------------
+def statistical_analysis(performance_data):
+    """Perform statistical significance tests"""
+    from scipy import stats
+    
+    # ANOVA test for multiple protocol comparison
+    f_value, p_value = stats.f_oneway(
+        performance_data['Proposed'],
+        performance_data['P2_UAVSec'],
+        performance_data['P3_PUFLight'],
+        performance_data['P4_ECCAuth'],
+        performance_data['P5_Blockchain']
+    )
+    
+    # Post-hoc Tukey test
+    from statsmodels.stats.multicomp import pairwise_tukeyhsd
+    tukey_results = pairwise_tukeyhsd(
+        np.concatenate([v for v in performance_data.values()]),
+        np.concatenate([[k]*len(v) for k, v in performance_data.items()])
+    )
+    
+    return {
+        'anova_f': f_value,
+        'anova_p': p_value,
+        'tukey_results': tukey_results
+    }
+#--------------------------------------------------------------------------
+#--------------------------------------------------------------------------
+def calculate_comprehensive_score(protocol_data, weights):
+    """Calculate weighted comprehensive performance score"""
+    scores = {}
+    
+    for protocol, metrics in protocol_data.items():
+        # Normalize metrics (lower is better)
+        normalized_scores = {}
+        
+        for metric, value in metrics.items():
+            min_val = min(m[metric] for m in protocol_data.values())
+            max_val = max(m[metric] for m in protocol_data.values())
+            # Inverse normalization since lower values are better
+            normalized_scores[metric] = (max_val - value) / (max_val - min_val) if max_val != min_val else 1
+        
+        # Calculate weighted score
+        total_score = sum(normalized_scores[metric] * weights[metric] 
+                         for metric in metrics.keys())
+        
+        scores[protocol] = total_score
+    
+    return scores
