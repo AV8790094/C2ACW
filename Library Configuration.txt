@@ -1,0 +1,4 @@
+// MIRACL initialization for our implementation
+miracl *mip=mirsys(256,2);  // 256-bit base, 2^m 
+mip->IOBASE=16;
+ecurve2_init(-3);  // Initialize curve y^2 = x^3 - 3x + b

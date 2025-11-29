@@ -1,0 +1,15 @@
+# Example of our timing measurement approach
+import time
+import statistics
+
+def measure_operation(operation, iterations=1000):
+    times = []
+    for i in range(iterations):
+        start = time.perf_counter_ns()
+        result = operation()
+        end = time.perf_counter_ns()
+        times.append((end - start) / 1e6)  # Convert to milliseconds
+    return statistics.mean(times), statistics.stdev(times)
+
+# Measurement for PUF generation
+puf_time, puf_std = measure_operation(lambda: puf_generate(OV1))

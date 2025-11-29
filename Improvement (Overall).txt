@@ -1,0 +1,68 @@
+import numpy as np
+
+# Data from the table (excluding proposed protocol for baseline calculation)
+existing_comm_costs = [5254, 4944, 3234, 5536, 4478, 3228, 3720, 2336, 3392, 3240, 3232]
+existing_comp_costs = [137.18, 198.06, 94.45, 58.08, 212.17, 51.58, 57.89, 37.95, 205.89, 56.57, 41.72]
+existing_energy_cons = [2.49, 2.15, 1.02, 0.63, 2.31, 1.05, 1.07, 1.01, 2.05, 1.06, 1.04]
+
+# Proposed protocol values
+proposed_comm = 2944
+proposed_comp = 42.75
+proposed_energy = 0.35
+
+# Calculate averages of existing protocols
+avg_comm = np.mean(existing_comm_costs)
+avg_comp = np.mean(existing_comp_costs)
+avg_energy = np.mean(existing_energy_cons)
+
+# Calculate percentage improvements
+improvement_comm = ((avg_comm - proposed_comm) / avg_comm) * 100
+improvement_comp = ((avg_comp - proposed_comp) / avg_comp) * 100
+improvement_energy = ((avg_energy - proposed_energy) / avg_energy) * 100
+
+# Calculate improvements compared to best existing
+best_comm = min(existing_comm_costs)
+best_comp = min(existing_comp_costs)
+best_energy = min(existing_energy_cons)
+
+improvement_vs_best_comm = ((best_comm - proposed_comm) / best_comm) * 100
+improvement_vs_best_comp = ((best_comp - proposed_comp) / best_comp) * 100
+improvement_vs_best_energy = ((best_energy - proposed_energy) / best_energy) * 100
+
+print("OVERALL PERFORMANCE IMPROVEMENT ANALYSIS")
+print("=" * 50)
+print(f"Average of Existing Protocols:")
+print(f"Communication Cost: {avg_comm:.2f} bits")
+print(f"Computation Cost: {avg_comp:.2f} ms")
+print(f"Energy Consumption: {avg_energy:.2f} J")
+print()
+
+print(f"Proposed Protocol:")
+print(f"Communication Cost: {proposed_comm} bits")
+print(f"Computation Cost: {proposed_comp} ms")
+print(f"Energy Consumption: {proposed_energy} J")
+print()
+
+print("PERCENTAGE IMPROVEMENT vs AVERAGE OF EXISTING PROTOCOLS")
+print("=" * 55)
+print(f"Communication Cost: {improvement_comm:+.2f}%")
+print(f"Computation Cost: {improvement_comp:+.2f}%")
+print(f"Energy Consumption: {improvement_energy:+.2f}%")
+print()
+
+print("PERCENTAGE IMPROVEMENT vs BEST EXISTING PROTOCOL")
+print("=" * 50)
+print(f"Best Existing Communication: {best_comm} bits ([64])")
+print(f"Best Existing Computation: {best_comp:.2f} ms ([64])")
+print(f"Best Existing Energy: {best_energy:.2f} J ([34])")
+print()
+print(f"Communication Cost vs Best: {improvement_vs_best_comm:+.2f}%")
+print(f"Computation Cost vs Best: {improvement_vs_best_comp:+.2f}%")
+print(f"Energy Consumption vs Best: {improvement_vs_best_energy:+.2f}%")
+print()
+
+print("OVERALL SUMMARY")
+print("=" * 30)
+print(f"Communication Cost Ranking: {sorted(existing_comm_costs + [proposed_comm]).index(proposed_comm) + 1}/{len(existing_comm_costs) + 1}")
+print(f"Computation Cost Ranking: {sorted(existing_comp_costs + [proposed_comp]).index(proposed_comp) + 1}/{len(existing_comp_costs) + 1}")
+print(f"Energy Consumption Ranking: {sorted(existing_energy_cons + [proposed_energy]).index(proposed_energy) + 1}/{len(existing_energy_cons) + 1}")

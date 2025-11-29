@@ -1,0 +1,77 @@
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+# Data from the table
+data = {
+    'Participant': ['Operator Device (OD)', 'Command Center (C2)', 'Reconnaissance Drone (RQ)'],
+    'Average_Power_W': [2.5, 4.5, 3.5],
+    'Computation_Cost_ms': [20.08, 2.81, 8.53],
+    'Energy_Consumption_mJ': [50.2, 12.65, 29.86]
+}
+
+df = pd.DataFrame(data)
+
+# Create subplots
+fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
+fig.suptitle('Energy Consumption Analysis of Authentication Protocol Participants', fontsize=16, fontweight='bold')
+
+# Colors for each participant
+colors = ['#FF6B6B', '#4ECDC4', '#45B7D1']
+
+# Plot 1: Average Power Consumption
+bars1 = ax1.bar(df['Participant'], df['Average_Power_W'], color=colors, alpha=0.8)
+ax1.set_title('Average Power Consumption', fontsize=14, fontweight='bold')
+ax1.set_ylabel('Power (Watts)', fontsize=12)
+ax1.grid(axis='y', alpha=0.3)
+# Add value labels on bars
+for bar in bars1:
+    height = bar.get_height()
+    ax1.text(bar.get_x() + bar.get_width()/2., height,
+             f'{height} W', ha='center', va='bottom', fontweight='bold')
+
+# Plot 2: Computation Cost
+bars2 = ax2.bar(df['Participant'], df['Computation_Cost_ms'], color=colors, alpha=0.8)
+ax2.set_title('Computation Cost', fontsize=14, fontweight='bold')
+ax2.set_ylabel('Time (Milliseconds)', fontsize=12)
+ax2.grid(axis='y', alpha=0.3)
+# Add value labels on bars
+for bar in bars2:
+    height = bar.get_height()
+    ax2.text(bar.get_x() + bar.get_width()/2., height,
+             f'{height} ms', ha='center', va='bottom', fontweight='bold')
+
+# Plot 3: Energy Consumption
+bars3 = ax3.bar(df['Participant'], df['Energy_Consumption_mJ'], color=colors, alpha=0.8)
+ax3.set_title('Energy Consumption', fontsize=14, fontweight='bold')
+ax3.set_ylabel('Energy (MilliJoules)', fontsize=12)
+ax3.grid(axis='y', alpha=0.3)
+# Add value labels on bars
+for bar in bars3:
+    height = bar.get_height()
+    ax3.text(bar.get_x() + bar.get_width()/2., height,
+             f'{height} mJ', ha='center', va='bottom', fontweight='bold')
+
+# Plot 4: Combined Comparison (Normalized)
+normalized_power = df['Average_Power_W'] / df['Average_Power_W'].max()
+normalized_time = df['Computation_Cost_ms'] / df['Computation_Cost_ms'].max()
+normalized_energy = df['Energy_Consumption_mJ'] / df['Energy_Consumption_mJ'].max()
+
+x = np.arange(len(df['Participant']))
+width = 0.25
+
+ax4.bar(x - width, normalized_power, width, label='Power (Normalized)', color=colors[0], alpha=0.8)
+ax4.bar(x, normalized_time, width, label='Computation Time (Normalized)', color=colors[1], alpha=0.8)
+ax4.bar(x + width, normalized_energy, width, label='Energy (Normalized)', color=colors[2], alpha=0.8)
+
+ax4.set_title('Normalized Comparison of All Metrics', fontsize=14, fontweight='bold')
+ax4.set_xlabel('Participants', fontsize=12)
+ax4.set_ylabel('Normalized Values (0-1)', fontsize=12)
+ax4.set_xticks(x)
+ax4.set_xticklabels(df['Participant'])
+ax4.legend()
+ax4.grid(axis='y', alpha=0.3)
+
+plt.tight_layout()
+plt.savefig('Fig-07.pdf', format='pdf', dpi=1200, bbox_inches='tight')
+plt.show()
