@@ -1,7 +1,3 @@
-# Open-Source Implementation: Cryptographic Protocol for Cyber Warfare Testbed
-
-This repository contains the complete open-source implementation, experiment scripts, and raw data for the cryptographic protocol described in the manuscript.
-
 import csv
 import time
 import numpy as np
@@ -25,7 +21,6 @@ class DeviceTimings:
     T_XOR: float    # XOR operation
     T_concat: float # Concatenation
 
-# Table 6 values
 LAPTOP_TIMINGS = DeviceTimings(
     T_X=0.445, T_add=0.0018, T_S=0.0138, T_H=0.149,
     T_E=0.461, T_D=0.461, T_FE=0.574, T_PF=0.00054,
@@ -300,3 +295,63 @@ if __name__ == "__main__":
     print("\nAll outputs saved. See:")
     print("  - measurement_logs.csv (raw timing logs)")
     print("  - device_specs.txt (device models and specs)")
+import subprocess
+import pandas as pd
+import matplotlib.pyplot as plt
+
+def run_experiment(repetitions=30):
+    """Run the protocol simulation multiple times and collect results."""
+    results = []
+    for i in range(repetitions):
+        # Run the simulator
+        result = subprocess.run(
+            ["python", "protocol_simulator.py"],
+            capture_output=True,
+            text=True
+        )
+        # Parse output (simplified)
+        lines = result.stdout.split('\n')
+        total_cost = None
+        for line in lines:
+            if "Proposed Protocol:" in line:
+                total_cost = float(line.split(':')[1].strip().replace(' ms', ''))
+                break
+        if total_cost:
+            results.append(total_cost)
+        print(f"Run {i+1}/{repetitions}: {total_cost:.3f} ms")
+
+    # Statistical summary
+    df = pd.DataFrame(results, columns=["Total_Cost_ms"])
+    summary = df.describe()
+    print("\n" + "="*60)
+    print("EXPERIMENT SUMMARY (30 REPETITIONS)")
+    print("="*60)
+    print(summary)
+    print(f"\nMean: {df['Total_Cost_ms'].mean():.3f} ms")
+    print(f"Std Dev: {df['Total_Cost_ms'].std():.3f} ms")
+    print(f"95% Confidence Interval: {df['Total_Cost_ms'].mean():.3f} ± {1.96*df['Total_Cost_ms'].std():.3f} ms")
+
+    # Plot
+    plt.figure(figsize=(10, 5))
+    plt.plot(df['Total_Cost_ms'], marker='o', linestyle='-', alpha=0.6)
+    plt.axhline(y=df['Total_Cost_ms'].mean(), color='r', linestyle='--', label='Mean')
+    plt.fill_between(range(len(df)),
+                     df['Total_Cost_ms'].mean() - df['Total_Cost_ms'].std(),
+                     df['Total_Cost_ms'].mean() + df['Total_Cost_ms'].std(),
+                     alpha=0.2, color='gray', label='±1 Std Dev')
+    plt.xlabel('Run Number')
+    plt.ylabel('Total Computation Cost (ms)')
+    plt.title('Protocol Performance Across Repeated Runs')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig('performance_runs.png', dpi=300)
+    plt.show()
+
+    # Save raw results
+    df.to_csv('experiment_results.csv', index=False)
+    print("\nRaw results saved to 'experiment_results.csv'")
+    print("Plot saved to 'performance_runs.png'")
+
+if __name__ == "__main__":
+    print("Starting reproducible experiment runner...")
+    run_experiment(repetitions=30)
