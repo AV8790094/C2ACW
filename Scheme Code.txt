@@ -1,0 +1,193 @@
+free c: channel.
+free private_channel: channel [private].
+free reg_channel: channel [private].
+free sync_channel: channel [private].  (* NEW: for synchronization *)
+
+fun h(bitstring): bitstring.
+fun concat(bitstring, bitstring): bitstring.
+fun xor(bitstring, bitstring): bitstring. 
+fun scalar_mul(bitstring, bitstring): bitstring.
+
+equation forall x:bitstring, y:bitstring; xor(xor(x,y), y) = x.
+
+free Q: bitstring.
+
+(* Global shared secrets *)
+free LRN: bitstring [private].
+free SK_S: bitstring [private].
+free KK1, KK2: bitstring [private].
+free OV1, OV2: bitstring [private].
+
+(* Public keys *)
+free PK_S1, PK_S2: bitstring.
+
+(* Global ID for testing *)
+free GLOBAL_ID_OD: bitstring.
+free GLOBAL_PHID_OD: bitstring.
+
+(* Events *)
+event OD_login(bitstring, bitstring).
+event C2_verify(bitstring, bitstring).
+event C2_forward(bitstring, bitstring).
+event RQ_verify(bitstring, bitstring).
+
+(* Queries *)
+query id:bitstring, t:bitstring; 
+  event(OD_login(id, t)) ==> event(C2_verify(id, t)).
+
+query id:bitstring, t:bitstring;
+  event(C2_forward(id, t)) ==> event(RQ_verify(id, t)).
+
+let CS =
+  (* C2 Registration *)
+  out(private_channel, (OV1, PK_S1));
+  in(private_channel, (PK_S1_cs: bitstring));
+  
+  (* RQ Registration *)
+  out(private_channel, (OV2, SK_S));
+  in(private_channel, (PK_S2_cs: bitstring));
+  
+  (* OD Registration *)
+  in(private_channel, (ID_OD_cs: bitstring, P6: bitstring, P7: bitstring));
+  let PHID_OD = h(concat(ID_OD_cs, LRN)) in
+  let P8 = scalar_mul(P6, PK_S1) in
+  let P9 = xor(P7, h(concat(KK1, LRN))) in
+  let P10 = h(xor(P7, P8)) in
+  
+  (* Store global ID for verification *)
+  out(c, GLOBAL_ID_OD);
+  
+  (* Send credentials to C2 for later verification *)
+  out(reg_channel, (ID_OD_cs, PHID_OD, P7, P10));
+  
+  (* Send synchronization signal to C2 *)
+  out(sync_channel, ());  (* NEW: Tell C2 credentials are ready *)
+  
+  (* Send response to OD *)
+  out(private_channel, (P10, PK_S1, PK_S2)).
+
+let C2 =
+  (* Registration phase *)
+  in(private_channel, (OV1_c2: bitstring, PK_S1_rec: bitstring));
+  let KK1_c2 = KK1 in
+  let P1 = OV1_c2 in
+  let P2 = h(concat(KK1_c2, LRN)) in
+  let PK_S1_calc = scalar_mul(P2, Q) in
+  out(private_channel, PK_S1_calc);
+  
+  (* Receive OD credentials from CS *)
+  in(reg_channel, (ID_OD_stored: bitstring, PHID_OD_stored: bitstring, P7_stored: bitstring, P10_stored: bitstring));
+  
+  (* Wait for sync signal from CS *)
+  in(sync_channel, ());  (* NEW: Ensure credentials are fully stored *)
+  
+  (* Now ready for authentication *)
+  ! (
+    (* Wait for registration completion signal *)
+    in(c, (reg_complete: bitstring));
+    
+    (* Authentication phase *)
+    in(c, (P12: bitstring, P16: bitstring, P17: bitstring, P18: bitstring, T: bitstring));
+    
+    (* Verification *)
+    let Px = scalar_mul(P2, P12) in
+    let P13 = scalar_mul(P12, PK_S1_calc) in
+    let ID_OD_rec = xor(P16, h(concat(P13, T))) in
+    let PHID_rec = h(concat(ID_OD_rec, LRN)) in
+    
+    (* Check: Verify PHID matches stored PHID *)
+    if PHID_rec = PHID_OD_stored then
+      event C2_verify(ID_OD_rec, T);
+      event C2_forward(ID_OD_rec, T);
+      let temp1 = concat(PHID_OD_stored, P13) in
+      let temp2 = concat(temp1, P16) in
+      let temp3 = concat(temp2, T) in
+      let P19 = h(temp3) in
+      out(c, (P12, P17, P19, T))
+  ).
+
+let RQ =
+  (* Registration *)
+  in(private_channel, (OV2_rq: bitstring, SK_S_rq: bitstring));
+  let KK2_rq = KK2 in
+  let P3 = OV2_rq in
+  let PK_S2_calc = scalar_mul(SK_S_rq, Q) in
+  let P4 = h(PK_S2_calc) in
+  let P5 = xor(SK_S_rq, h(concat(KK2_rq, P4))) in
+  out(private_channel, PK_S2_calc);
+  
+  (* Authentication *)
+  ! (
+    in(c, (P12_rq: bitstring, P17_rq: bitstring, P19_rq: bitstring, T_rq: bitstring));
+    event RQ_verify(GLOBAL_ID_OD, T_rq);
+    out(c, (P12_rq, P17_rq, P19_rq, T_rq))
+  ).
+
+let OD =
+  (* Generate local credentials *)
+  new LOCAL_ID_OD: bitstring;
+  new LOCAL_PW_OD: bitstring;
+  new LOCAL_BIO_OD: bitstring;
+  
+  let P6 = h(concat(LOCAL_ID_OD, LOCAL_PW_OD)) in
+  let P7 = h(concat(concat(LOCAL_ID_OD, LOCAL_PW_OD), LOCAL_BIO_OD)) in
+  
+  (* Register with CS *)
+  out(private_channel, (LOCAL_ID_OD, P6, P7));
+  in(private_channel, (P10_od: bitstring, PK_S1_od: bitstring, PK_S2_od: bitstring));
+  
+  (* Store P11 for verification *)
+  let temp1 = concat(P10_od, PK_S1_od) in
+  let temp2 = concat(temp1, PK_S2_od) in
+  let temp3 = concat(temp2, P7) in
+  let P11 = h(temp3) in
+  
+  (* Wait for registration completion *)
+  in(c, (reg_complete_od: bitstring));
+  
+  (* Wait a moment to ensure C2 is ready *)
+  out(c, ());  (* Small delay *)
+  in(c, (dummy: bitstring));  (* Consume a message *)
+  
+  (* Login attempt *)
+  let P6_star = h(concat(LOCAL_ID_OD, LOCAL_PW_OD)) in
+  let P7_star = h(concat(concat(LOCAL_ID_OD, LOCAL_PW_OD), LOCAL_BIO_OD)) in
+  let P8_star = scalar_mul(P6_star, PK_S1_od) in
+  let P10_star = h(xor(P7_star, P8_star)) in
+  
+  if P10_star = P10_od then
+    (* Generate fresh nonces for this session *)
+    new r1: bitstring;
+    new r2: bitstring;
+    new T_od: bitstring;
+    
+    event OD_login(LOCAL_ID_OD, T_od);
+    
+    let P12 = scalar_mul(P6_star, Q) in
+    let P13 = scalar_mul(P12, PK_S1_od) in
+    let P14 = scalar_mul(P12, PK_S2_od) in
+    let P16 = xor(LOCAL_ID_OD, h(concat(P13, T_od))) in
+    let P17 = xor(LOCAL_ID_OD, h(concat(P14, T_od))) in
+    
+    (* Calculate P18 with the fresh r2 *)
+    let temp4 = concat(r2, LOCAL_ID_OD) in
+    let temp5 = concat(temp4, P12) in
+    let temp6 = concat(temp5, P7_star) in
+    let temp7 = concat(temp6, P16) in
+    let temp8 = concat(temp7, P17) in
+    let P18 = h(temp8) in
+    
+    out(c, (P12, P16, P17, P18, T_od));
+    
+    (* Wait for response *)
+    in(c, (response: bitstring));
+    0.
+
+(* Main process *)
+process
+  ( 
+    CS |
+    C2 |
+    RQ |
+    OD
+  )
